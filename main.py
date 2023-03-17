@@ -1,19 +1,147 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import BertTokenizer,BertModel
+from sklearn.cluster import KMeans
+import os 
+import torch
+import numpy as np
+import evaluate
+import torch.nn as nn
 
-tokenizer = AutoTokenizer.from_pretrained("VietAI/vit5-large-vietnews-summarization")  
-model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/vit5-large-vietnews-summarization")
-model.to("cpu")
+def read_data():
+    all_sentences = {}  
+    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    clusters_dir = os.listdir(pwd)
+    for cluster in clusters_dir:
+        documents = os.listdir(pwd + '/' + cluster)
+        valid_documents = list(filter(lambda x: "body.txt" in x, documents))
+        cluster_sentences = []
+        for vd in valid_documents:
+            file = open(pwd + '/' + cluster + '/' + vd).read()
+            sentences = file.split(".")
+            cluster_sentences.extend(sentences)
+        all_sentences[cluster] = cluster_sentences
+    return all_sentences
 
-sentence = "VietAI là tổ chức phi lợi nhuận với sứ mệnh ươm mầm tài năng về trí tuệ nhân tạo và xây dựng một cộng đồng các chuyên gia trong lĩnh vực trí tuệ nhân tạo đẳng cấp quốc tế tại Việt Nam."
-text =  "vietnews: " + sentence + " </s>"
-encoding = tokenizer(text, return_tensors="pt")
-input_ids, attention_masks = encoding["input_ids"].to("cpu"), encoding["attention_mask"].to("cpu")
-outputs = model.generate(
-    input_ids=input_ids, attention_mask=attention_masks,
-    max_length=256,
-    early_stopping=True
-)
-for output in outputs:
-    line = tokenizer.decode(output, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-    print(line)
+def read_data_tok():
+    all_sentences = {}
+    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    clusters_dir = os.listdir(pwd)
+    for cluster in clusters_dir:
+        documents = os.listdir(pwd + '/' + cluster)
+        valid_documents = list(filter(lambda x: "body.tok.txt" in x, documents))
+        cluster_sentences = []
+        for vd in valid_documents:
+            file = open(pwd + '/' + cluster + '/' + vd).read().strip()
+            sentences = file.split("\n")
+            cluster_sentences.extend(sentences)
+        all_sentences[cluster] = cluster_sentences
+    return all_sentences
+
+def read_label():
+    all_sentences = {}
+    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    clusters_dir = os.listdir(pwd)
+    for cluster in clusters_dir:
+        documents = os.listdir(pwd + '/' + cluster)
+        valid_documents = list(filter(lambda x: "ref" in x, documents))
+        valid_documents = list(filter(lambda x: "tok" not in x, valid_documents))
+        cluster_sentences = []
+        for vd in valid_documents:
+            file = open(pwd + '/' + cluster + '/' + vd).read()
+            cluster_sentences.append(file)
+        all_sentences[cluster] = cluster_sentences
+    return all_sentences
+
+def read_label_tok():
+    all_sentences = {}
+    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    clusters_dir = os.listdir(pwd)
+    for cluster in clusters_dir:
+        documents = os.listdir(pwd + '/' + cluster)
+        valid_documents = list(filter(lambda x: "ref" in x, documents))
+        valid_documents = list(filter(lambda x: "tok" in x, valid_documents))
+        cluster_sentences = []
+        for vd in valid_documents:
+            file = open(pwd + '/' + cluster + '/' + vd).read()
+            cluster_sentences.append(file)
+        all_sentences[cluster] = cluster_sentences
+    return all_sentences
+
+class MeanPooling(nn.Module):
+    def __init__(self):
+        super(MeanPooling, self).__init__()
+    def forward(self, last_hidden_state, attention_mask):
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        sum_embeddings = torch.sum(last_hidden_state * input_mask_expanded, 1)
+        sum_mask = input_mask_expanded.sum(1)
+        sum_mask = torch.clamp(sum_mask, min=1e-9)
+        mean_embeddings = sum_embeddings / sum_mask
+        return mean_embeddings
     
+class custom_model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = BertModel.from_pretrained("NlpHUST/vibert4news-base-cased")
+        self.pool = MeanPooling()
+    def feature(self, inputs):
+        outputs = self.model(**inputs)
+        last_hidden_state = outputs.last_hidden_state
+        feature = self.pool(last_hidden_state, inputs['attention_mask'])
+        return feature
+    def forward(self, inputs):
+        feature = self.feature(inputs)
+        return feature
+
+if __name__== "__main__":
+    tokenizer= BertTokenizer.from_pretrained("NlpHUST/vibert4news-base-cased")
+    bert_model = custom_model()
+    rouge = evaluate.load('rouge')
+    #all_sentences = read_data()
+    # all_labels = read_label()
+    all_sentences = read_data_tok()
+    all_labels = read_label_tok()
+    
+    cluster_results = []
+    for cluster_name, cluster_sentences in all_sentences.items():
+        print("Calculate", cluster_name)
+        inputs = tokenizer(cluster_sentences, return_tensors="pt", padding=True, truncation=True)
+        with torch.no_grad():
+            features = bert_model(inputs)
+        kmeans = KMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
+
+        # Retrieve sentence closest to centroid for each cluster
+        cluster_representatives = []
+        for i in range(len(kmeans.cluster_centers_)):
+            centroid = kmeans.cluster_centers_[i]
+            distances = [np.linalg.norm(embedding - centroid) for embedding in features]
+            closest_index = np.argmin(distances)
+            closest_text = cluster_sentences[closest_index]
+            cluster_representatives.append(closest_text)
+
+        prediction_holder = []
+        # Print cluster representatives
+        for i, representative in enumerate(cluster_representatives):
+            #print(f"Cluster {i+1} representative: {representative}")
+            prediction_holder.append(representative.strip())
+        prediction = "\n".join(prediction_holder)
+
+        # Calculate ROUGE on each cluster
+        best_result_ref = {}
+        base_rouge1 = 0
+        for i in range(len(all_labels[cluster_name])):
+            results = rouge.compute(predictions=[prediction],
+                                references=[all_labels[cluster_name][i]])
+            if results["rouge1"] >= base_rouge1:
+                best_result_ref = results
+                base_rouge1 = results["rouge1"]
+        cluster_results.append(best_result_ref)
+    
+    # Final mean ROUGE scores
+    s = 0
+    s2 = 0
+    for i in range(len(cluster_results)):
+        s += cluster_results[i]["rouge1"] 
+        s2 += cluster_results[i]["rouge2"] 
+    mean_s = s/len(cluster_results)
+    mean_s2 = s2/len(cluster_results)
+    print('Rouge 1:' , mean_s)
+    print('Rouge 2:', mean_s2)
