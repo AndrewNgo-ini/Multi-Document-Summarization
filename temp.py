@@ -3,7 +3,10 @@ from torch.utils.data import DataLoader, Dataset
 import torch
 import os 
 import pandas as pd 
+import pickle
 os.environ["WANDB_DISABLED"] = "true"
+
+path = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
 
 def prepare_input(text, tokenizer):
     inputs = tokenizer.encode_plus(
@@ -18,7 +21,7 @@ def prepare_input(text, tokenizer):
 
 def read_label_tok():
     all_sentences = {}
-    pwd = "/home/hieungo3/Multi-Document-Summarization/clusters"
+    pwd = path
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -34,7 +37,7 @@ def read_label_tok():
 
 def read_data_tok():
     all_sentences = {}
-    pwd = "/home/hieungo3/Multi-Document-Summarization/clusters"
+    pwd = path
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -120,6 +123,8 @@ if __name__ == "__main__":
     random.seed(42)
     val_cluster = pick_subset_by_percentage(ds.keys(), 20)
     print(val_cluster)
+    with open('val_cluster.pkl', 'wb') as file:
+        pickle.dump(val_cluster, file)
     texts = []
     labels = []
     clusters = []

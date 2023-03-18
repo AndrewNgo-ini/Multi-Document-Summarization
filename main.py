@@ -5,10 +5,13 @@ import torch
 import numpy as np
 import evaluate
 import torch.nn as nn
+import pickle 
+
+path = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
 
 def read_data():
     all_sentences = {}  
-    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    pwd = path
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -23,7 +26,7 @@ def read_data():
 
 def read_data_tok():
     all_sentences = {}
-    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    pwd = path
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -38,7 +41,7 @@ def read_data_tok():
 
 def read_label():
     all_sentences = {}
-    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    pwd = path
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -53,7 +56,7 @@ def read_label():
 
 def read_label_tok():
     all_sentences = {}
-    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    pwd = path
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -101,43 +104,46 @@ if __name__== "__main__":
     all_sentences = read_data_tok()
     all_labels = read_label_tok()
     
+    with open('val_cluster.pkl', 'rb') as file:
+        val_cluster = pickle.load(file)
     stop = 0
     cluster_results = []
     for cluster_name, cluster_sentences in all_sentences.items():
-        print("Calculate", cluster_name)
-        inputs = tokenizer(cluster_sentences, return_tensors="pt", padding=True, truncation=True)
-        with torch.no_grad():
-            #features = bert_model(inputs)
-            features = bert_model(**inputs).last_hidden_state[:, 0, :]
-        kmeans = KMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
+        if cluster_name in val_cluster:
+            print("Calculate", cluster_name)
+            inputs = tokenizer(cluster_sentences, return_tensors="pt", padding=True, truncation=True)
+            with torch.no_grad():
+                #features = bert_model(inputs)
+                features = bert_model(**inputs).last_hidden_state[:, 0, :]
+            kmeans = KMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
 
-        # Retrieve sentence closest to centroid for each cluster
-        cluster_representatives = []
-        for i in range(len(kmeans.cluster_centers_)):
-            centroid = kmeans.cluster_centers_[i]
-            distances = [np.linalg.norm(embedding - centroid) for embedding in features]
-            closest_index = np.argmin(distances)
-            closest_text = cluster_sentences[closest_index]
-            cluster_representatives.append(closest_text)
+            # Retrieve sentence closest to centroid for each cluster
+            cluster_representatives = []
+            for i in range(len(kmeans.cluster_centers_)):
+                centroid = kmeans.cluster_centers_[i]
+                distances = [np.linalg.norm(embedding - centroid) for embedding in features]
+                closest_index = np.argmin(distances)
+                closest_text = cluster_sentences[closest_index]
+                cluster_representatives.append(closest_text)
 
-        prediction_holder = []
-        # Print cluster representatives
-        for i, representative in enumerate(cluster_representatives):
-            #print(f"Cluster {i+1} representative: {representative}")
-            prediction_holder.append(representative.strip())
-        prediction = "\n".join(prediction_holder)
+            prediction_holder = []
+            # Print cluster representatives
+            for i, representative in enumerate(cluster_representatives):
+                #print(f"Cluster {i+1} representative: {representative}")
+                prediction_holder.append(representative.strip())
+            prediction = "\n".join(prediction_holder)
 
-        # Calculate ROUGE on each cluster
-        cluster_results.append(
-            rouge.compute(
-                predictions=[prediction],
-                references=[all_labels[cluster_name]]
+            # Calculate ROUGE on each cluster
+            cluster_results.append(
+                rouge.compute(
+                    predictions=[prediction],
+                    references=[all_labels[cluster_name]]
+                )
             )
-        )
 
-        # stop += 1
-        # if stop == 1:
-        #     break 
+            # stop += 1
+            # if stop == 1:
+            #     break 
     
     # Final mean ROUGE scores
     s = 0
