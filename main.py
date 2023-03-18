@@ -93,19 +93,22 @@ class custom_model(nn.Module):
 
 if __name__== "__main__":
     tokenizer= BertTokenizer.from_pretrained("NlpHUST/vibert4news-base-cased")
-    bert_model = custom_model()
+    #bert_model = custom_model()
+    bert_model = BertModel.from_pretrained("NlpHUST/vibert4news-base-cased")
     rouge = evaluate.load('rouge')
     #all_sentences = read_data()
     # all_labels = read_label()
     all_sentences = read_data_tok()
     all_labels = read_label_tok()
     
+    stop = 0
     cluster_results = []
     for cluster_name, cluster_sentences in all_sentences.items():
         print("Calculate", cluster_name)
         inputs = tokenizer(cluster_sentences, return_tensors="pt", padding=True, truncation=True)
         with torch.no_grad():
-            features = bert_model(inputs)
+            #features = bert_model(inputs)
+            features = bert_model(**inputs).last_hidden_state[:, 0, :]
         kmeans = KMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
 
         # Retrieve sentence closest to centroid for each cluster
@@ -125,15 +128,16 @@ if __name__== "__main__":
         prediction = "\n".join(prediction_holder)
 
         # Calculate ROUGE on each cluster
-        best_result_ref = {}
-        base_rouge1 = 0
-        for i in range(len(all_labels[cluster_name])):
-            results = rouge.compute(predictions=[prediction],
-                                references=[all_labels[cluster_name][i]])
-            if results["rouge1"] >= base_rouge1:
-                best_result_ref = results
-                base_rouge1 = results["rouge1"]
-        cluster_results.append(best_result_ref)
+        cluster_results.append(
+            rouge.compute(
+                predictions=[prediction],
+                references=[all_labels[cluster_name]]
+            )
+        )
+
+        # stop += 1
+        # if stop == 1:
+        #     break 
     
     # Final mean ROUGE scores
     s = 0
