@@ -1,4 +1,4 @@
-from transformers import BertTokenizer,BertModel
+from transformers import BertTokenizer,BertModel, AutoModel, AutoTokenizer
 from sklearn.cluster import KMeans
 import os 
 import torch
@@ -7,7 +7,7 @@ import evaluate
 import torch.nn as nn
 import pickle 
 
-path = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+path = "/home/hieungo3/Multi-Document-Summarization/clusters"
 
 def read_data():
     all_sentences = {}  
@@ -95,9 +95,12 @@ class custom_model(nn.Module):
         return feature
 
 if __name__== "__main__":
-    tokenizer= BertTokenizer.from_pretrained("NlpHUST/vibert4news-base-cased")
+    #tokenizer= BertTokenizer.from_pretrained("NlpHUST/vibert4news-base-cased")
+    tokenizer= AutoTokenizer.from_pretrained("vinai/phobert-base")
     #bert_model = custom_model()
-    bert_model = BertModel.from_pretrained("NlpHUST/vibert4news-base-cased")
+    #bert_model = BertModel.from_pretrained("NlpHUST/vibert4news-base-cased")
+    bert_model = AutoModel.from_pretrained("vinai/phobert-base")
+    #bert_model = AutoModel.from_pretrained("/home/hieungo3/Multi-Document-Summarization/my_awesome_model/checkpoint-4800")
     rouge = evaluate.load('rouge')
     #all_sentences = read_data()
     # all_labels = read_label()

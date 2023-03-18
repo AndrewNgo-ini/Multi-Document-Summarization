@@ -6,7 +6,7 @@ import pandas as pd
 import pickle
 os.environ["WANDB_DISABLED"] = "true"
 
-path = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+path = "/home/hieungo3/Multi-Document-Summarization/clusters"
 
 def prepare_input(text, tokenizer):
     inputs = tokenizer.encode_plus(
@@ -101,8 +101,8 @@ if __name__ == "__main__":
     model = AutoModelForSequenceClassification.from_pretrained("vinai/phobert-base",
                                                                num_labels=2, id2label=id2label, label2id=label2id)
     # Freeze the pretrained BERT layers
-    for param in model.base_model.parameters():
-        param.requires_grad = False
+    #for param in model.base_model.parameters():
+    #    param.requires_grad = False
 
     training_args = TrainingArguments(
         output_dir="my_awesome_model",
@@ -153,3 +153,4 @@ if __name__ == "__main__":
     )
 
     trainer.train()
+    #trainer.save_model()
