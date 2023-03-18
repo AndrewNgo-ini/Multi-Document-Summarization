@@ -18,7 +18,7 @@ def prepare_input(text, tokenizer):
 
 def read_label_tok():
     all_sentences = {}
-    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    pwd = "/home/hieungo3/Multi-Document-Summarization/clusters"
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -34,7 +34,7 @@ def read_label_tok():
 
 def read_data_tok():
     all_sentences = {}
-    pwd = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
+    pwd = "/home/hieungo3/Multi-Document-Summarization/clusters"
     clusters_dir = os.listdir(pwd)
     for cluster in clusters_dir:
         documents = os.listdir(pwd + '/' + cluster)
@@ -97,13 +97,16 @@ if __name__ == "__main__":
     tokenizer= AutoTokenizer.from_pretrained("vinai/phobert-base")
     model = AutoModelForSequenceClassification.from_pretrained("vinai/phobert-base",
                                                                num_labels=2, id2label=id2label, label2id=label2id)
-    
+    # Freeze the pretrained BERT layers
+    for param in model.base_model.parameters():
+        param.requires_grad = False
+
     training_args = TrainingArguments(
         output_dir="my_awesome_model",
         learning_rate=2e-5,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
-        num_train_epochs=2,
+        num_train_epochs=10,
         weight_decay=0.01,
         evaluation_strategy="epoch",
         save_strategy="epoch",
