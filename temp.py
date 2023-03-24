@@ -71,8 +71,8 @@ if __name__ == "__main__":
     model = AutoModelForSequenceClassification.from_pretrained("vinai/phobert-base",
                                                                num_labels=2, id2label=id2label, label2id=label2id)
     # Freeze the pretrained BERT layers
-    for param in model.base_model.parameters():
-        param.requires_grad = False
+    #for param in model.base_model.parameters():
+    #    param.requires_grad = False
 
     training_args = TrainingArguments(
         output_dir="my_awesome_model",
@@ -123,3 +123,4 @@ if __name__ == "__main__":
     )
 
     trainer.train()
+    #trainer.save_model()
