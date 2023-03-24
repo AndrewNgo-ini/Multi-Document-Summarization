@@ -4,9 +4,9 @@ import torch
 import os 
 import pandas as pd 
 import pickle
+from utils import *
 os.environ["WANDB_DISABLED"] = "true"
 
-path = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
 
 def prepare_input(text, tokenizer):
     inputs = tokenizer.encode_plus(
@@ -19,36 +19,6 @@ def prepare_input(text, tokenizer):
         inputs[k] = torch.tensor(v, dtype = torch.long)
     return inputs
 
-def read_label_tok():
-    all_sentences = {}
-    pwd = path
-    clusters_dir = os.listdir(pwd)
-    for cluster in clusters_dir:
-        documents = os.listdir(pwd + '/' + cluster)
-        valid_documents = list(filter(lambda x: "ref" in x, documents))
-        valid_documents = list(filter(lambda x: "tok" in x, valid_documents))
-        cluster_sentences = []
-        for vd in valid_documents:
-            file = open(pwd + '/' + cluster + '/' + vd).read().strip()
-            sentences = file.split("\n")
-            cluster_sentences.extend(sentences)
-        all_sentences[cluster] = cluster_sentences
-    return all_sentences
-
-def read_data_tok():
-    all_sentences = {}
-    pwd = path
-    clusters_dir = os.listdir(pwd)
-    for cluster in clusters_dir:
-        documents = os.listdir(pwd + '/' + cluster)
-        valid_documents = list(filter(lambda x: "body.tok.txt" in x, documents))
-        cluster_sentences = []
-        for vd in valid_documents:
-            file = open(pwd + '/' + cluster + '/' + vd).read().strip()
-            sentences = file.split("\n")
-            cluster_sentences.extend(sentences)
-        all_sentences[cluster] = cluster_sentences
-    return all_sentences
 
 class custom_dataset(Dataset):
     def __init__(self, df, tokenizer):

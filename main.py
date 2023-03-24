@@ -6,68 +6,8 @@ import numpy as np
 import evaluate
 import torch.nn as nn
 import pickle 
-
-path = "/Users/ngohieu/textsum/VietnameseMDS/clusters"
-
-def read_data():
-    all_sentences = {}  
-    pwd = path
-    clusters_dir = os.listdir(pwd)
-    for cluster in clusters_dir:
-        documents = os.listdir(pwd + '/' + cluster)
-        valid_documents = list(filter(lambda x: "body.txt" in x, documents))
-        cluster_sentences = []
-        for vd in valid_documents:
-            file = open(pwd + '/' + cluster + '/' + vd).read()
-            sentences = file.split(".")
-            cluster_sentences.extend(sentences)
-        all_sentences[cluster] = cluster_sentences
-    return all_sentences
-
-def read_data_tok():
-    all_sentences = {}
-    pwd = path
-    clusters_dir = os.listdir(pwd)
-    for cluster in clusters_dir:
-        documents = os.listdir(pwd + '/' + cluster)
-        valid_documents = list(filter(lambda x: "body.tok.txt" in x, documents))
-        cluster_sentences = []
-        for vd in valid_documents:
-            file = open(pwd + '/' + cluster + '/' + vd).read().strip()
-            sentences = file.split("\n")
-            cluster_sentences.extend(sentences)
-        all_sentences[cluster] = cluster_sentences
-    return all_sentences
-
-def read_label():
-    all_sentences = {}
-    pwd = path
-    clusters_dir = os.listdir(pwd)
-    for cluster in clusters_dir:
-        documents = os.listdir(pwd + '/' + cluster)
-        valid_documents = list(filter(lambda x: "ref" in x, documents))
-        valid_documents = list(filter(lambda x: "tok" not in x, valid_documents))
-        cluster_sentences = []
-        for vd in valid_documents:
-            file = open(pwd + '/' + cluster + '/' + vd).read()
-            cluster_sentences.append(file)
-        all_sentences[cluster] = cluster_sentences
-    return all_sentences
-
-def read_label_tok():
-    all_sentences = {}
-    pwd = path
-    clusters_dir = os.listdir(pwd)
-    for cluster in clusters_dir:
-        documents = os.listdir(pwd + '/' + cluster)
-        valid_documents = list(filter(lambda x: "ref" in x, documents))
-        valid_documents = list(filter(lambda x: "tok" in x, valid_documents))
-        cluster_sentences = []
-        for vd in valid_documents:
-            file = open(pwd + '/' + cluster + '/' + vd).read()
-            cluster_sentences.append(file)
-        all_sentences[cluster] = cluster_sentences
-    return all_sentences
+from utils import *
+import hdbscan
 
 class MeanPooling(nn.Module):
     def __init__(self):
@@ -102,7 +42,7 @@ if __name__== "__main__":
     #all_sentences = read_data()
     # all_labels = read_label()
     all_sentences = read_data_tok()
-    all_labels = read_label_tok()
+    all_labels = read_label_tok(is_flatten=False)
     
     with open('val_cluster.pkl', 'rb') as file:
         val_cluster = pickle.load(file)
@@ -115,8 +55,8 @@ if __name__== "__main__":
             with torch.no_grad():
                 #features = bert_model(inputs)
                 features = bert_model(**inputs).last_hidden_state[:, 0, :]
-            kmeans = KMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
 
+            kmeans = KMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
             # Retrieve sentence closest to centroid for each cluster
             cluster_representatives = []
             for i in range(len(kmeans.cluster_centers_)):
@@ -140,10 +80,13 @@ if __name__== "__main__":
                     references=[all_labels[cluster_name]]
                 )
             )
+            print("Prediction: \n", prediction)
+            for i, label in enumerate(all_labels[cluster_name]):
+                print(f"Labels {i}: \n", label)
 
-            # stop += 1
-            # if stop == 1:
-            #     break 
+            stop += 1
+            if stop == 1:
+                break 
     
     # Final mean ROUGE scores
     s = 0
